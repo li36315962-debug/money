@@ -106,7 +106,6 @@
         }
       };
 
-      // 載入資料 (維持沿用 v6 讓你的帳戶與記帳資料不流失)
       useEffect(() => {
         const savedTxs = localStorage.getItem('walletClinic_txs_v6');
         if (savedTxs) setTransactions(JSON.parse(savedTxs));
@@ -579,10 +578,9 @@
       );
     };
 
-    // --- Diagnosis Result View ---
+    // --- Diagnosis Result View (移除了 0050 區塊) ---
     const DiagnosisView = ({ data, onDone }) => {
       if (!data) return null;
-      const amt = Number(data.amount);
       const getRiskColor = (score) => score > 70 ? 'text-danger' : score > 40 ? 'text-warning' : 'text-safe';
 
       return (
@@ -592,15 +590,6 @@
             <div className="flex justify-between items-center mb-2"><span className="text-sm font-bold text-gray-500">這筆花費屬於</span><span className={`font-bold ${getRiskColor(data.riskScore)}`}>風險指數：{data.riskScore}/100</span></div>
             <div className="text-2xl font-bold text-primary mb-3">{data.type}</div>
             <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded leading-relaxed border border-gray-100">{data.advice}</div>
-          </div>
-          <div className="glass-card p-5 bg-gradient-to-br from-white to-gray-50">
-            <h3 className="font-bold text-secondary flex items-center gap-2 mb-3"><IconTrending /> 0050 投資機會成本分析</h3>
-            <p className="text-xs text-gray-500 mb-4">如果你沒有花掉這 NT$ {amt.toLocaleString()}，而是投入台股 0050 ETF，依據近年歷史平均報酬推算：</p>
-            <div className="space-y-3">
-              <div className="flex justify-between items-end border-b border-gray-100 pb-1"><span className="text-sm text-gray-600">近 1 年後預估</span><span className="font-bold text-safe">NT$ {Math.round(amt * 1.25).toLocaleString()}</span></div>
-              <div className="flex justify-between items-end border-b border-gray-100 pb-1"><span className="text-sm text-gray-600">近 3 年後預估</span><span className="font-bold text-safe">NT$ {Math.round(amt * 1.62).toLocaleString()}</span></div>
-              <div className="flex justify-between items-end"><span className="text-sm text-gray-600">近 5 年後預估</span><span className="font-bold text-safe text-lg">NT$ {Math.round(amt * 2.15).toLocaleString()}</span></div>
-            </div>
           </div>
           <div className="glass-card p-5"><h3 className="font-bold text-secondary mb-2 border-l-4 border-safe pl-2">下次的替代方案</h3><div className="text-sm text-gray-700">{data.alternative}</div></div>
           <button onClick={onDone} className="w-full mt-4 bg-primary text-white py-3 rounded-lg font-bold shadow-md hover:bg-opacity-90 active:scale-95 transition-all">了解，回總覽</button>
@@ -634,7 +623,7 @@
       );
     };
 
-    // --- Simulator View (★★ 大幅升級自訂動態項目 ★★) ---
+    // --- Simulator View ---
     const SimulatorView = ({ txs, selectedMonth }) => {
       const monthTxs = txs.filter(t => t.date.startsWith(selectedMonth));
       const expenses = monthTxs.filter(t => t.txType !== 'income');
@@ -655,7 +644,6 @@
       const [daysLeft, setDaysLeft] = useState(calculateDaysLeft());
       useEffect(() => { setDaysLeft(calculateDaysLeft()); }, [selectedMonth]);
 
-      // --- 動態節流項目狀態管理 ---
       const [adjustments, setAdjustments] = useState(() => {
         const saved = localStorage.getItem('walletClinic_simulator_adj');
         return saved ? JSON.parse(saved) : [
@@ -664,41 +652,23 @@
         ];
       });
 
-      // 自動將設定儲存到瀏覽器
-      useEffect(() => {
-        localStorage.setItem('walletClinic_simulator_adj', JSON.stringify(adjustments));
-      }, [adjustments]);
+      useEffect(() => { localStorage.setItem('walletClinic_simulator_adj', JSON.stringify(adjustments)); }, [adjustments]);
 
-      // 新增一筆空白項目
-      const handleAddAdjustment = () => {
-        setAdjustments([...adjustments, { id: Date.now().toString(), name: '', price: 100, count: 1 }]);
-      };
-
-      // 更新指定項目的內容
-      const handleUpdateAdjustment = (id, field, value) => {
-        setAdjustments(adjustments.map(adj => adj.id === id ? { ...adj, [field]: value } : adj));
-      };
-
-      // 刪除指定項目
-      const handleDeleteAdjustment = (id) => {
-        setAdjustments(adjustments.filter(adj => adj.id !== id));
-      };
-
-      // -----------------------------
+      const handleAddAdjustment = () => { setAdjustments([...adjustments, { id: Date.now().toString(), name: '', price: 100, count: 1 }]); };
+      const handleUpdateAdjustment = (id, field, value) => { setAdjustments(adjustments.map(adj => adj.id === id ? { ...adj, [field]: value } : adj)); };
+      const handleDeleteAdjustment = (id) => { setAdjustments(adjustments.filter(adj => adj.id !== id)); };
 
       const daysPassed = Math.max(1, new Date(selectedMonth.split('-')[0], selectedMonth.split('-')[1], 0).getDate() - daysLeft);
       const dailyAvg = Math.round(spent / daysPassed);
       const projectedTotal = spent + (dailyAvg * daysLeft);
       
-      // 動態加總節流清單省下的錢
       const savings = adjustments.reduce((sum, adj) => sum + (Number(adj.price) * Number(adj.count)), 0);
-      
       const finalProjected = projectedTotal - savings;
       const finalBalance = totalIncome - finalProjected;
       const isOver = finalBalance < 0;
 
       return (
-        <div className="fade-in space-y-4">
+        <div className="fade-in space-y-4 pb-8">
           <h2 className="text-xl font-bold text-primary mb-2 flex items-center gap-2"><IconTrending /> 月底財務模擬器 ({selectedMonth})</h2>
           
           <div className="glass-card p-4 space-y-3">
@@ -724,26 +694,19 @@
               {adjustments.map(adj => (
                 <div key={adj.id} className="flex gap-1 items-center">
                   <input type="text" value={adj.name} onChange={e => handleUpdateAdjustment(adj.id, 'name', e.target.value)} className="flex-1 p-1 text-sm border rounded focus:border-primary focus:outline-none bg-gray-50" placeholder="節流目標" />
-                  
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-gray-500 font-bold">$</span>
                     <input type="number" value={adj.price} onChange={e => handleUpdateAdjustment(adj.id, 'price', e.target.value)} className="w-14 p-1 text-sm border rounded text-right focus:border-primary focus:outline-none bg-gray-50" />
                   </div>
-                  
                   <span className="text-xs text-gray-500">×</span>
-                  
                   <select value={adj.count} onChange={e => handleUpdateAdjustment(adj.id, 'count', Number(e.target.value))} className="w-14 p-1 text-sm border rounded bg-white focus:border-primary focus:outline-none">
                     {[1,2,3,4,5,6,7,8,9,10,15,20,30].map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                   <span className="text-xs text-gray-500 pr-1">次</span>
-                  
                   <button onClick={() => handleDeleteAdjustment(adj.id)} className="text-gray-300 hover:text-red-500 px-1 font-bold">✕</button>
                 </div>
               ))}
-              
-              {adjustments.length === 0 && (
-                <div className="text-center text-xs text-gray-400 py-3 border border-dashed rounded bg-gray-50">目前尚未設定任何節流目標</div>
-              )}
+              {adjustments.length === 0 && <div className="text-center text-xs text-gray-400 py-3 border border-dashed rounded bg-gray-50">目前尚未設定任何節流目標</div>}
             </div>
             
             <div className="mt-4 p-2 bg-safe text-white rounded text-center text-sm font-bold shadow">
@@ -760,7 +723,7 @@
       );
     };
 
-    // --- Cooldown View ---
+    // --- Cooldown View (加入了 0050 區塊) ---
     const CooldownView = () => {
       const [form, setForm] = useState({ item: '', price: '', reason: '', emotion: '開心', tone: '嚴格版' });
       const [result, setResult] = useState(null);
@@ -772,10 +735,11 @@
         else if (form.tone === '溫柔版') { risk = p > 2000 ? '中風險' : '低風險'; action = p > 2000 ? '延後買' : '可以買'; msg = `親愛的，我知道你現在情緒是「${form.emotion}」。如果買了能讓你真正開心很久，那就買吧；但如果只是想發洩，我們把它放進購物車等明天決定好嗎？`; } 
         else { msg = `你的錢包在哭泣你聽見了嗎？NT$${p} 可以吃好幾頓大餐了！放下那個 ${form.item}，立地成佛！`; }
         if (form.emotion === '壓力大' || form.emotion === '無聊') action = '延後買';
-        setResult({ risk, action, msg });
+        setResult({ risk, action, msg, amount: p }); // 將金額存入 result 以供 0050 計算
       };
+      
       return (
-        <div className="fade-in space-y-4">
+        <div className="fade-in space-y-4 pb-8">
           <h2 className="text-xl font-bold text-primary flex items-center gap-2"><IconShield /> 冷靜購買助手</h2>
           <div className="glass-card p-4 space-y-3">
             <input placeholder="我想買什麼？ (例如：新出的耳機)" className="w-full p-2 border rounded focus:border-primary focus:outline-none" onChange={e=>setForm({...form, item:e.target.value})} />
@@ -786,10 +750,25 @@
             </div>
             <button onClick={handleCheck} className="w-full bg-secondary text-white py-3 rounded-lg font-bold shadow-md hover:opacity-90 active:scale-95 transition-all">幫我評估</button>
           </div>
+
           {result && (
-            <div className="glass-card p-5 mt-4 border-l-4 border-warning fade-in">
-              <div className="flex gap-2 mb-2"><span className="px-2 py-1 text-xs font-bold rounded bg-gray-100 text-gray-600">{result.risk}</span><span className={`px-2 py-1 text-xs font-bold rounded text-white ${result.action==='不要買'?'bg-danger': result.action==='延後買'?'bg-warning':'bg-safe'}`}>{result.action}</span></div>
-              <div className="text-lg font-bold text-primary mb-2">AI 勸退語錄：</div><p className="text-gray-700 italic leading-relaxed">「{result.msg}」</p>
+            <div className="space-y-4 fade-in mt-4">
+              {/* AI 診斷語錄 */}
+              <div className="glass-card p-5 border-l-4 border-warning">
+                <div className="flex gap-2 mb-2"><span className="px-2 py-1 text-xs font-bold rounded bg-gray-100 text-gray-600">{result.risk}</span><span className={`px-2 py-1 text-xs font-bold rounded text-white ${result.action==='不要買'?'bg-danger': result.action==='延後買'?'bg-warning':'bg-safe'}`}>{result.action}</span></div>
+                <div className="text-lg font-bold text-primary mb-2">AI 勸退語錄：</div><p className="text-gray-700 italic leading-relaxed">「{result.msg}」</p>
+              </div>
+
+              {/* 0050 機會成本區塊 (從記帳頁面移過來的) */}
+              <div className="glass-card p-5 bg-gradient-to-br from-white to-gray-50">
+                <h3 className="font-bold text-secondary flex items-center gap-2 mb-3"><IconTrending /> 0050 投資機會成本分析</h3>
+                <p className="text-xs text-gray-500 mb-4">如果你把這筆 NT$ {result.amount.toLocaleString()} 省下來，轉投入台股 0050 ETF，依據近年歷史平均報酬推算：</p>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-end border-b border-gray-100 pb-1"><span className="text-sm text-gray-600">近 1 年後預估</span><span className="font-bold text-safe">NT$ {Math.round(result.amount * 1.25).toLocaleString()}</span></div>
+                  <div className="flex justify-between items-end border-b border-gray-100 pb-1"><span className="text-sm text-gray-600">近 3 年後預估</span><span className="font-bold text-safe">NT$ {Math.round(result.amount * 1.62).toLocaleString()}</span></div>
+                  <div className="flex justify-between items-end"><span className="text-sm text-gray-600">近 5 年後預估</span><span className="font-bold text-safe text-lg">NT$ {Math.round(result.amount * 2.15).toLocaleString()}</span></div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -802,7 +781,7 @@
       const monthTxs = txs.filter(t => t.date.startsWith(selectedMonth));
 
       return (
-        <div className="fade-in space-y-4">
+        <div className="fade-in space-y-4 pb-8">
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-xl font-bold text-primary flex items-center gap-2"><IconList /> 明細紀錄</h2>
             <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-1 border rounded bg-white text-sm font-bold text-primary focus:outline-none focus:border-primary shadow-sm" />
