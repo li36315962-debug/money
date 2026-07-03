@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>錢包心理診療室：AI 偵測你的消費情緒</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bgLight: '#F7F3EA', primary: '#2F5D50', secondary: '#2D3E50',
+            accent: '#F28C6B', safe: '#4CAF50', warning: '#F2B84B',
+            danger: '#E76F51', cardBg: '#FFFFFF',
+            pStress: '#4B4E8A', pSocial: '#F28C6B', pNight: '#1F2A44',
+            pReward: '#F2B84B', pDeal: '#B85775', pRational: '#2F5D50',
+          },
+          fontFamily: { sans: ['Noto Sans TC', 'Inter', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #F7F3EA; -webkit-font-smoothing: antialiased; }
+    .glass-card { background: rgba(255, 255, 255, 0.95); box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-radius: 8px; border: 1px solid rgba(47, 93, 80, 0.05); }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .fade-in { animation: fadeIn 0.4s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="text-secondary pb-24">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- Icons ---
+    const IconHome = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>;
+    const IconWallet = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>;
+    const IconAdd = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>;
+    const IconSearch = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
+    const IconBrain = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path></svg>;
+    const IconUser = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
+    const IconTrending = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
+    const IconShield = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>;
+    const IconList = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>;
+    const IconCalendar = () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
+    
+    // --- 音樂 Icons ---
+    const IconMusicOn = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>;
+    const IconMusicOff = () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>;
+
+    const COLORS = ['#E76F51', '#F2B84B', '#2F5D50', '#4B4E8A', '#B85775', '#F28C6B', '#2D3E50', '#4CAF50'];
+    
+    const personalities = [
+      { id: 'stress', name: '壓力補償型', color: 'bg-pStress', text: 'text-white', desc: '壓力越大，越容易用消費換取短暫放鬆。', trigger: '壓力消費', icon: '☁️' },
+      { id: 'social', name: '社交合群型', color: 'bg-pSocial', text: 'text-white', desc: '容易因為朋友邀約或不好意思拒絕而超出預算。', trigger: '社交壓力消費', icon: '☕' },
+      { id: 'night', name: '深夜衝動型', color: 'bg-pNight', text: 'text-white', desc: '晚上或疲憊時容易滑手機購物，隔天才後悔。', trigger: '報復性消費', icon: '🌙' },
+      { id: 'reward', name: '犒賞依賴型', color: 'bg-pReward', text: 'text-yellow-900', desc: '常用消費作為完成任務後的獎勵。', trigger: '犒賞型消費', icon: '🏆' },
+      { id: 'deal', name: '優惠陷阱型', color: 'bg-pDeal', text: 'text-white', desc: '看到折扣、限時優惠、免運時容易覺得不買可惜。', trigger: '優惠陷阱型消費', icon: '🏷️' },
+      { id: 'rational', name: '理性規劃型', color: 'bg-pRational', text: 'text-white', desc: '大多數消費都有明確用途，能維持預算紀律。', trigger: '必要型消費', icon: '🛡️' }
+    ];
+
+    const DEFAULT_ACCOUNTS = [
+      { id: 'acc_cash', name: '現金', balance: 0 },
+      { id: 'acc_post', name: '郵局', balance: 0 },
+      { id: 'acc_ctbc', name: '中國信託', balance: 0 },
+      { id: 'acc_stock', name: '證券', balance: 0 }
+    ];
+
+    const getTodayYYYYMMDD = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const getCurrentYYYYMM = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+
+    const App = () => {
+      const [currentTab, setCurrentTab] = useState('home');
+      const [transactions, setTransactions] = useState([]);
+      const [accounts, setAccounts] = useState(DEFAULT_ACCOUNTS);
+      const [selectedMonth, setSelectedMonth] = useState(getCurrentYYYYMM());
+      const [diagnosisData, setDiagnosisData] = useState(null);
+      const [isLoaded, setIsLoaded] = useState(false);
+
+      // --- 音樂播放控制 ---
+      const [isPlaying, setIsPlaying] = useState(false);
+      const audioRef = useRef(null);
+      
+      const toggleMusic = () => {
+        if (audioRef.current) {
+          if (isPlaying) {
+            audioRef.current.pause();
+          } else {
+            audioRef.current.play().catch(e => console.log("播放失敗，請檢查 bgm.mp3 是否存在。"));
+          }
+          setIsPlaying(!isPlaying);
+        }
+      };
+
+      // 載入資料 (維持沿用 v6 讓你的帳戶與記帳資料不流失)
+      useEffect(() => {
+        const savedTxs = localStorage.getItem('walletClinic_txs_v6');
+        if (savedTxs) setTransactions(JSON.parse(savedTxs));
+        
+        const savedAccs = localStorage.getItem('walletClinic_accounts_v6');
+        if (savedAccs) setAccounts(JSON.parse(savedAccs));
+        
+        setIsLoaded(true);
+      }, []);
+
+      useEffect(() => {
+        if(isLoaded) {
+          localStorage.setItem('walletClinic_txs_v6', JSON.stringify(transactions));
+          localStorage.setItem('walletClinic_accounts_v6', JSON.stringify(accounts));
+        }
+      }, [transactions, accounts, isLoaded]);
+
+      const navTo = (tab) => {
+        window.scrollTo(0, 0);
+        setCurrentTab(tab);
+      };
+
+      const analyzeTransaction = (data) => {
+        let type = '必要型消費'; let riskScore = 10;
+        let advice = '這是一筆計畫內的支出，做得很好，請繼續保持預算紀律。';
+        let alternative = '無需替代方案，維持目前的消費習慣即可。';
+
+        if (data.emotion === '壓力大' || data.emotion === '焦慮') {
+          type = '壓力消費'; riskScore = 85;
+          advice = '偵測到你可能在用消費來緩解壓力。短暫的快樂雖然有效，但月底的帳單可能會成為新的壓力源。';
+          alternative = '下次覺得壓力大時，試著先放下手機去散步 10 分鐘，或泡一杯熱茶，給自己免費的喘息時間。';
+        } else if (data.reason === '衝動購買' || data.emotion === '無聊') {
+          type = data.emotion === '無聊' ? '無聊型消費' : '報復性消費'; riskScore = 75;
+          advice = '大腦在無聊或疲憊時，很容易受到多巴胺的誘惑而點下購買鍵。這筆花費似乎缺乏明確目的。';
+          alternative = '建立一個「冷靜清單」，想買的東西先放進清單，24小時後如果還想買再結帳。';
+        } else if (data.emotion === '朋友邀約' || data.reason === '朋友邀約') {
+          type = '社交壓力消費'; riskScore = 60;
+          advice = '人際關係很重要，但為了合群而透支預算，反而會讓你失去對生活的掌控感。';
+          alternative = '試著主動提議較平價的聚會方式，例如改成去公園野餐，或是設定每月固定的「交際預算」。';
+        } else if (data.reason === '看到優惠') {
+          type = '優惠陷阱型消費'; riskScore = 70;
+          advice = '「因為打折才買」往往是超支的開始。記住，不買立省 100%。';
+          alternative = '問自己：「如果這件商品沒有打折，我還會買嗎？」如果不會，那這就是假性需求。';
+        } else if (data.emotion === '想犒賞自己') {
+          type = '犒賞型消費'; riskScore = 50;
+          advice = '努力後犒賞自己是人之常情，但頻繁的物質獎勵可能會降低它的特殊性。';
+          alternative = '尋找非物質的犒賞方式，例如讓自己無罪惡感地睡個午覺，或是看一部想看很久的電影。';
+        }
+        if (data.regret === '非常後悔') riskScore = Math.min(100, riskScore + 20);
+        if (data.regret === '有點後悔') riskScore = Math.min(100, riskScore + 10);
+        return { ...data, type, riskScore, advice, alternative, id: Date.now().toString() };
+      };
+
+      const handleAddSubmit = (txData) => {
+        const finalCategory = txData.category === '其他' ? (txData.customCategory || '其他') : txData.category;
+        const processedData = { ...txData, category: finalCategory };
+        const amt = Number(txData.amount);
+        const isIncome = txData.txType === 'income';
+
+        setAccounts(prev => prev.map(acc => {
+          if (acc.id === txData.accountId) return { ...acc, balance: isIncome ? acc.balance + amt : acc.balance - amt };
+          return acc;
+        }));
+
+        const txMonth = txData.date.substring(0, 7);
+        if (txMonth !== selectedMonth) setSelectedMonth(txMonth);
+
+        if (isIncome) {
+          const newIncome = { ...processedData, type: '收入', riskScore: 0, id: Date.now().toString() };
+          setTransactions([newIncome, ...transactions].sort((a,b) => new Date(b.date) - new Date(a.date)));
+          navTo('home');
+        } else {
+          const result = analyzeTransaction(processedData);
+          setTransactions([result, ...transactions].sort((a,b) => new Date(b.date) - new Date(a.date)));
+          setDiagnosisData(result);
+          navTo('diagnosis');
+        }
+      };
+
+      const handleDeleteTransaction = (id) => {
+        const tx = transactions.find(t => t.id === id);
+        if (tx) {
+          const amt = Number(tx.amount);
+          const isIncome = tx.txType === 'income';
+          setAccounts(prev => prev.map(acc => {
+            if (acc.id === tx.accountId) return { ...acc, balance: isIncome ? acc.balance - amt : acc.balance + amt };
+            return acc;
+          }));
+        }
+        setTransactions(transactions.filter(t => t.id !== id));
+      };
+
+      return (
+        <div className="max-w-md mx-auto min-h-screen relative shadow-2xl bg-bgLight border-x border-gray-200 overflow-hidden flex flex-col">
+          
+          <header className="bg-primary text-white p-4 sticky top-0 z-10 flex items-center justify-between shadow-md flex-shrink-0">
+            <div className="flex items-center">
+              <IconBrain />
+              <h1 className="ml-2 font-bold text-lg tracking-wide">錢包心理診療室</h1>
+            </div>
+            
+            {/* 音樂播放按鈕 */}
+            <button onClick={toggleMusic} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
+              {isPlaying ? <IconMusicOn /> : <IconMusicOff />}
+            </button>
+            <audio ref={audioRef} loop src="bgm.mp3" />
+          </header>
+
+          <main className="p-4 space-y-6 flex-grow overflow-y-auto">
+            {currentTab === 'home' && <HomeView txs={transactions} accounts={accounts} selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />}
+            {currentTab === 'assets' && <AssetView accounts={accounts} setAccounts={setAccounts} />}
+            {currentTab === 'add' && <AddView onSubmit={handleAddSubmit} accounts={accounts} />}
+            {currentTab === 'search' && <SearchView txs={transactions} />}
+            {currentTab === 'diagnosis' && <DiagnosisView data={diagnosisData} onDone={() => navTo('home')} />}
+            {currentTab === 'personality' && <PersonalityView txs={transactions} selectedMonth={selectedMonth} />}
+            {currentTab === 'simulator' && <SimulatorView txs={transactions} selectedMonth={selectedMonth} />}
+            {currentTab === 'cooldown' && <CooldownView />}
+            {currentTab === 'history' && <HistoryView txs={transactions} accounts={accounts} onDelete={handleDeleteTransaction} selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />}
+          </main>
+
+          <nav className="bg-white border-t border-gray-100 flex justify-start sm:justify-around gap-1 overflow-x-auto hide-scrollbar px-2 py-2 text-[10px] text-gray-400 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] flex-shrink-0">
+            <NavItem label="總覽" active={currentTab==='home'} icon={<IconHome/>} onClick={() => navTo('home')} />
+            <NavItem label="資產" active={currentTab==='assets'} icon={<IconWallet/>} onClick={() => navTo('assets')} />
+            <NavItem label="記帳" active={currentTab==='add'} icon={<IconAdd/>} onClick={() => navTo('add')} />
+            <NavItem label="查詢" active={currentTab==='search'} icon={<IconSearch/>} onClick={() => navTo('search')} />
+            <NavItem label="人格" active={currentTab==='personality'} icon={<IconUser/>} onClick={() => navTo('personality')} />
+            <NavItem label="月底" active={currentTab==='simulator'} icon={<IconTrending/>} onClick={() => navTo('simulator')} />
+            <NavItem label="冷靜" active={currentTab==='cooldown'} icon={<IconShield/>} onClick={() => navTo('cooldown')} />
+            <NavItem label="明細" active={currentTab==='history'} icon={<IconList/>} onClick={() => navTo('history')} />
+          </nav>
+        </div>
+      );
+    };
+
+    const NavItem = ({ label, icon, active, onClick }) => (
+      <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-colors min-w-[45px] ${active ? 'text-primary font-bold' : 'hover:text-primary'}`}>
+        <div className={active ? 'scale-110' : ''}>{icon}</div>
+        <span className="whitespace-nowrap">{label}</span>
+      </button>
+    );
+
+    // --- Search & Report View ---
+    const SearchView = ({ txs }) => {
+      const [filters, setFilters] = useState({ startDate: '', endDate: '', minPrice: '', maxPrice: '' });
+      const handleChange = (e) => setFilters({...filters, [e.target.name]: e.target.value});
+
+      const filteredTxs = txs.filter(t => {
+        const amt = Number(t.amount);
+        if (filters.minPrice && amt < Number(filters.minPrice)) return false;
+        if (filters.maxPrice && amt > Number(filters.maxPrice)) return false;
+        if (filters.startDate && t.date < filters.startDate) return false;
+        if (filters.endDate && t.date > filters.endDate) return false;
+        return true;
+      });
+
+      const totalIncome = filteredTxs.filter(t => t.txType === 'income').reduce((s,t) => s + Number(t.amount), 0);
+      const totalExpense = filteredTxs.filter(t => t.txType !== 'income').reduce((s,t) => s + Number(t.amount), 0);
+      const netTotal = totalIncome - totalExpense;
+
+      const catData = filteredTxs.reduce((acc, t) => {
+        if (!acc[t.category]) acc[t.category] = { amount: 0, type: t.txType };
+        acc[t.category].amount += Number(t.amount);
+        return acc;
+      }, {});
+
+      const incCats = Object.entries(catData).filter(([k, v]) => v.type === 'income').sort((a,b)=>b[1].amount - a[1].amount);
+      const expCats = Object.entries(catData).filter(([k, v]) => v.type !== 'income').sort((a,b)=>b[1].amount - a[1].amount);
+
+      return (
+        <div className="fade-in space-y-4 pb-8">
+          <div className="flex items-center gap-2 mb-2 text-primary"><IconSearch /><h2 className="text-xl font-bold">歷年進階查詢</h2></div>
+
+          <div className="glass-card p-4 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-xs font-bold text-gray-500 mb-1">開始日期</label><input type="date" name="startDate" value={filters.startDate} onChange={handleChange} className="w-full p-2 border rounded focus:outline-none focus:border-primary text-sm" /></div>
+              <div><label className="block text-xs font-bold text-gray-500 mb-1">結束日期</label><input type="date" name="endDate" value={filters.endDate} onChange={handleChange} className="w-full p-2 border rounded focus:outline-none focus:border-primary text-sm" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-xs font-bold text-gray-500 mb-1">最低金額 (NT$)</label><input type="number" name="minPrice" placeholder="不限" value={filters.minPrice} onChange={handleChange} className="w-full p-2 border rounded focus:outline-none focus:border-primary text-sm" /></div>
+              <div><label className="block text-xs font-bold text-gray-500 mb-1">最高金額 (NT$)</label><input type="number" name="maxPrice" placeholder="不限" value={filters.maxPrice} onChange={handleChange} className="w-full p-2 border rounded focus:outline-none focus:border-primary text-sm" /></div>
+            </div>
+          </div>
+
+          <div className="glass-card p-5 border-t-4 border-secondary text-center space-y-3">
+            <h3 className="text-xs font-bold text-gray-500">此條件下的財務總結</h3>
+            <div className="grid grid-cols-2 divide-x">
+              <div><div className="text-[10px] text-gray-400">總收入加總</div><div className="text-lg font-bold text-safe">+{totalIncome.toLocaleString()}</div></div>
+              <div><div className="text-[10px] text-gray-400">總花費加總</div><div className="text-lg font-bold text-danger">-{totalExpense.toLocaleString()}</div></div>
+            </div>
+            <div className="pt-3 border-t">
+              <div className="text-[10px] text-gray-400">結餘</div>
+              <div className={`text-xl font-bold ${netTotal < 0 ? 'text-danger' : 'text-primary'}`}>{netTotal > 0 ? '+' : ''}{netTotal.toLocaleString()}</div>
+            </div>
+          </div>
+
+          {expCats.length > 0 && (
+            <div className="glass-card p-4 rounded-lg">
+              <h3 className="font-bold text-secondary mb-3 border-l-4 border-danger pl-2 text-sm">此區間支出分類排行</h3>
+              <div className="space-y-3">
+                {expCats.map(([catName, data], i) => (
+                  <div key={catName} className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs items-center"><span className="font-bold text-gray-700">{catName}</span><span className="text-danger font-bold">NT$ {data.amount.toLocaleString()}</span></div>
+                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden"><div className="h-full rounded-full bg-danger opacity-80" style={{ width: `${(data.amount/totalExpense)*100}%` }}></div></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {incCats.length > 0 && (
+            <div className="glass-card p-4 rounded-lg">
+              <h3 className="font-bold text-secondary mb-3 border-l-4 border-safe pl-2 text-sm">此區間收入分類排行</h3>
+              <div className="space-y-3">
+                {incCats.map(([catName, data], i) => (
+                  <div key={catName} className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs items-center"><span className="font-bold text-gray-700">{catName}</span><span className="text-safe font-bold">NT$ {data.amount.toLocaleString()}</span></div>
+                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden"><div className="h-full rounded-full bg-safe opacity-80" style={{ width: `${(data.amount/totalIncome)*100}%` }}></div></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {filteredTxs.length === 0 && <div className="text-center text-gray-400 py-6 text-sm">找不到符合條件的紀錄</div>}
+        </div>
+      );
+    };
+
+    // --- Asset View ---
+    const AssetView = ({ accounts, setAccounts }) => {
+      const totalAssets = accounts.reduce((sum, a) => sum + a.balance, 0);
+      const [editingId, setEditingId] = useState(null);
+      const [editValue, setEditValue] = useState('');
+
+      const handleSaveEdit = (id) => {
+        setAccounts(accounts.map(a => a.id === id ? { ...a, balance: Number(editValue) } : a));
+        setEditingId(null);
+      };
+
+      const handleAddAccount = () => {
+        const name = prompt('請輸入新帳戶名稱 (例如：Richart)：');
+        if (!name) return;
+        const initBalance = prompt(`請輸入「${name}」的目前餘額：`, '0');
+        if (initBalance === null) return;
+        const newAcc = { id: 'acc_' + Date.now(), name, balance: Number(initBalance) };
+        setAccounts([...accounts, newAcc]);
+      };
+
+      return (
+        <div className="fade-in space-y-4 pb-8">
+          <div className="glass-card p-6 bg-gradient-to-br from-primary to-[#23453b] text-white rounded-xl shadow-lg relative overflow-hidden">
+            <div className="relative z-10">
+              <h2 className="text-white/80 text-sm font-semibold mb-1">目前總資產</h2>
+              <div className="text-4xl font-bold tracking-wider">NT$ {totalAssets.toLocaleString()}</div>
+            </div>
+            <div className="absolute right-[-20px] bottom-[-20px] opacity-10 scale-150"><IconWallet /></div>
+          </div>
+
+          <div className="flex justify-between items-end mb-2 mt-6">
+            <h3 className="font-bold text-secondary text-lg">我的帳戶列表</h3>
+            <button onClick={handleAddAccount} className="text-primary text-sm font-bold bg-primary/10 px-3 py-1 rounded hover:bg-primary/20 transition-colors">+ 新增帳戶</button>
+          </div>
+
+          <div className="space-y-3">
+            {accounts.map(acc => (
+              <div key={acc.id} className="glass-card p-4 flex justify-between items-center transition-all hover:border-primary/30">
+                <div className="flex items-center gap-3">
+                  <div className="bg-gray-100 p-2 rounded-full text-secondary"><IconWallet /></div>
+                  <div className="font-bold text-gray-700">{acc.name}</div>
+                </div>
+                {editingId === acc.id ? (
+                  <div className="flex items-center gap-2">
+                    <input type="number" autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} className="w-24 p-1 border rounded text-right text-sm focus:border-primary focus:outline-none" />
+                    <button onClick={() => handleSaveEdit(acc.id)} className="bg-safe text-white px-2 py-1 rounded text-xs font-bold">儲存</button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-end">
+                    <div className="font-bold text-lg text-secondary">NT$ {acc.balance.toLocaleString()}</div>
+                    <button onClick={() => { setEditingId(acc.id); setEditValue(acc.balance); }} className="text-[10px] text-gray-400 hover:text-primary mt-1 underline">手動校正</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-4 text-center">* 新增記帳紀錄時，系統會自動加減此處的帳戶餘額。</p>
+        </div>
+      );
+    };
+
+    // --- Home View ---
+    const HomeView = ({ txs, accounts, selectedMonth, setSelectedMonth }) => {
+      const monthTxs = txs.filter(t => t.date.startsWith(selectedMonth));
+      const expenses = monthTxs.filter(t => t.txType !== 'income');
+      const incomes = monthTxs.filter(t => t.txType === 'income');
+      
+      const totalExpense = expenses.reduce((sum, t) => sum + Number(t.amount), 0);
+      const totalIncome = incomes.reduce((sum, t) => sum + Number(t.amount), 0);
+      const totalAssets = accounts.reduce((sum, a) => sum + a.balance, 0);
+      const remain = totalIncome - totalExpense;
+      
+      const getRiskInfo = () => {
+        if (remain < 0) return { level: '高風險 (本月透支)', color: 'bg-danger', text: 'text-danger', bg: 'bg-danger/20' };
+        if (totalIncome === 0) return { level: '尚無收入 (請先記錄)', color: 'bg-gray-400', text: 'text-gray-500', bg: 'bg-gray-200' };
+        if (remain < totalIncome * 0.2) return { level: '中風險 (餘額吃緊)', color: 'bg-warning', text: 'text-warning', bg: 'bg-warning/20' };
+        return { level: '低風險 (健康狀態)', color: 'bg-safe', text: 'text-safe', bg: 'bg-safe/20' };
+      };
+      const riskInfo = getRiskInfo();
+      const expenseRatio = totalIncome > 0 ? Math.min((totalExpense / totalIncome) * 100, 100) : (totalExpense > 0 ? 100 : 0);
+
+      const typeData = expenses.reduce((acc, t) => {
+        const found = acc.find(x => x.name === t.type);
+        if (found) found.value += Number(t.amount);
+        else acc.push({ name: t.type, value: Number(t.amount) });
+        return acc;
+      }, []).sort((a,b) => b.value - a.value);
+
+      const emotionalSpendRatio = expenses.length === 0 ? 0 : Math.round((expenses.filter(t => t.type !== '必要型消費').reduce((s,t) => s + Number(t.amount), 0) / totalExpense) * 100);
+      const aiTip = emotionalSpendRatio > 50 
+        ? "最近情緒消費偏高，建議關注非必要支出，保護你的資產。" 
+        : "目前財務情緒穩定，請繼續保持理性的消費習慣！";
+
+      return (
+        <div className="fade-in space-y-4">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-bold text-secondary flex items-center gap-2"><IconCalendar /> 月份總覽</h2>
+            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-1 border rounded bg-white text-sm font-bold text-primary focus:outline-none focus:border-primary shadow-sm" />
+          </div>
+
+          <div className="glass-card p-4 flex justify-between items-center rounded-lg border-l-4 border-secondary">
+            <div>
+              <div className="text-xs font-bold text-gray-500">目前總資產 (不受月份影響)</div>
+              <div className="text-xl font-bold text-secondary">NT$ {totalAssets.toLocaleString()}</div>
+            </div>
+            <IconWallet />
+          </div>
+
+          <div className="glass-card p-5 rounded-lg border-t-4 border-primary">
+            <div className="flex justify-between items-center">
+              <h2 className="text-gray-500 text-sm font-semibold">{selectedMonth} 本月結餘</h2>
+            </div>
+            <div className={`text-4xl font-bold mt-1 ${remain < 0 ? 'text-danger' : 'text-primary'}`}>
+              NT$ {remain.toLocaleString()}
+            </div>
+            <div className="mt-4 space-y-1 text-sm text-gray-600 border-t pt-3">
+              <div className="flex justify-between text-safe"><span>當月總收入</span><span>+{totalIncome.toLocaleString()}</span></div>
+              <div className="flex justify-between text-danger font-bold"><span>當月總支出</span><span>-{totalExpense.toLocaleString()}</span></div>
+            </div>
+            <div className="mt-4 w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+              <div className={`h-full ${riskInfo.color}`} style={{ width: `${expenseRatio}%` }}></div>
+            </div>
+            {totalIncome === 0 && totalExpense > 0 && <p className="text-[10px] text-danger mt-1 text-right">⚠️ 本月尚未紀錄任何收入，目前呈現透支狀態</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="glass-card p-4 rounded-lg flex flex-col items-center text-center">
+              <span className="text-gray-500 text-xs font-bold mb-1">財務風險燈號</span>
+              <div className={`text-sm font-bold px-3 py-1 rounded-full ${riskInfo.bg} ${riskInfo.text}`}>{riskInfo.level}</div>
+            </div>
+            <div className="glass-card p-4 rounded-lg flex flex-col items-center text-center">
+              <span className="text-gray-500 text-xs font-bold mb-1">情緒消費比例</span>
+              <span className="text-2xl font-bold text-accent">{emotionalSpendRatio}%</span>
+            </div>
+          </div>
+
+          <div className="glass-card p-4 rounded-lg bg-primary text-white shadow-lg flex gap-3 items-start">
+            <div className="bg-white/20 p-2 rounded-full"><IconBrain /></div>
+            <div>
+              <div className="text-xs opacity-80 mb-1">AI 診療室狀態：</div>
+              <div className="text-sm tracking-wide leading-relaxed">{aiTip}</div>
+            </div>
+          </div>
+
+          {typeData.length > 0 && (
+            <div className="glass-card p-5 rounded-lg">
+              <h3 className="font-bold text-secondary mb-4 border-l-4 border-accent pl-2">本月支出情緒分析</h3>
+              <div className="space-y-4">
+                {typeData.map((entry, i) => (
+                  <div key={i} className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs items-center">
+                      <span className="font-bold text-gray-700 flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></span>{entry.name}</span>
+                      <span className="text-gray-500">NT$ {entry.value.toLocaleString()} ({Math.round(entry.value/totalExpense*100)}%)</span>
+                    </div>
+                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${(entry.value/totalExpense)*100}%`, backgroundColor: COLORS[i % COLORS.length] }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // --- Add Transaction View ---
+    const AddView = ({ onSubmit, accounts }) => {
+      const [txType, setTxType] = useState('expense');
+      const [form, setForm] = useState({ 
+        date: getTodayYYYYMMDD(), accountId: accounts.length > 0 ? accounts[0].id : '',
+        item: '', amount: '', category: '餐飲', customCategory: '', 
+        emotion: '壓力大', reason: '想放鬆', regret: '不後悔' 
+      });
+
+      useEffect(() => { if (!form.accountId && accounts.length > 0) setForm(prev => ({ ...prev, accountId: accounts[0].id })); }, [accounts]);
+
+      const expenseCategories = ['餐飲','外送','購物','娛樂','交通','學習','社交','其他'];
+      const incomeCategories = ['薪水','獎金','投資','兼職','零用錢','其他'];
+      const handleChange = (e) => setForm({...form, [e.target.name]: e.target.value});
+      const handleTypeSwitch = (type) => { setTxType(type); setForm({...form, category: type === 'expense' ? '餐飲' : '薪水', customCategory: ''}); };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if(!form.accountId) return alert('請先新增至少一個資產帳戶！');
+        if(!form.item || !form.amount) return alert('請填寫項目與金額');
+        if(!form.date) return alert('請選擇日期');
+        if(form.category === '其他' && !form.customCategory.trim()) return alert('請輸入自訂類別名稱');
+        onSubmit({ ...form, txType });
+      };
+
+      return (
+        <form onSubmit={handleSubmit} className="fade-in space-y-4">
+          <div className="flex items-center justify-between mb-2"><h2 className="text-xl font-bold text-primary flex items-center gap-2"><IconAdd /> 新增紀錄</h2></div>
+          <div className="flex bg-gray-200 p-1 rounded-lg">
+            <button type="button" onClick={() => handleTypeSwitch('expense')} className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${txType === 'expense' ? 'bg-white shadow text-primary' : 'text-gray-500 hover:text-gray-700'}`}>支出紀錄</button>
+            <button type="button" onClick={() => handleTypeSwitch('income')} className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${txType === 'income' ? 'bg-white shadow text-safe' : 'text-gray-500 hover:text-gray-700'}`}>收入紀錄</button>
+          </div>
+
+          <div className="glass-card p-4 space-y-4 border-l-4" style={{ borderColor: txType === 'income' ? '#4CAF50' : '#E76F51' }}>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm font-semibold mb-1 text-secondary">日期</label><input type="date" name="date" value={form.date} onChange={handleChange} className="w-full p-2 border rounded focus:outline-none focus:border-primary" /></div>
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-secondary">{txType === 'expense' ? '扣款帳戶' : '存入帳戶'}</label>
+                <select name="accountId" value={form.accountId} onChange={handleChange} className="w-full p-2 border rounded bg-white focus:outline-none focus:border-primary font-bold">
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name} (餘額: {a.balance.toLocaleString()})</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2"><label className="block text-sm font-semibold mb-1">項目名稱</label><input name="item" value={form.item} onChange={handleChange} placeholder={txType === 'expense' ? '例如：深夜無名宵夜' : '例如：家教薪水'} className="w-full p-2 border rounded focus:outline-none focus:border-primary" /></div>
+              <div className="col-span-1"><label className="block text-sm font-semibold mb-1">金額</label><input name="amount" type="number" value={form.amount} onChange={handleChange} placeholder="0" className="w-full p-2 border rounded focus:outline-none focus:border-primary" /></div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold mb-1">分類</label>
+              <select name="category" value={form.category} onChange={handleChange} className="w-full p-2 border rounded bg-white focus:outline-none focus:border-primary mb-2">
+                {(txType === 'income' ? incomeCategories : expenseCategories).map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              {form.category === '其他' && <input name="customCategory" value={form.customCategory} onChange={handleChange} placeholder="請自行輸入類別名稱..." className="w-full p-2 border rounded border-dashed border-gray-400 focus:outline-none focus:border-primary fade-in" />}
+            </div>
+
+            {txType === 'expense' && (
+              <div className="space-y-4 fade-in bg-gray-50 -mx-4 p-4 border-y">
+                <div className="text-xs font-bold text-gray-500 mb-2 border-b pb-1">AI 心理診斷欄位</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="block text-sm font-semibold mb-1">當下心情</label><select name="emotion" value={form.emotion} onChange={handleChange} className="w-full p-2 border rounded bg-white focus:outline-none focus:border-primary">{['壓力大','開心','難過','焦慮','無聊','想犒賞自己','朋友邀約'].map(o => <option key={o}>{o}</option>)}</select></div>
+                  <div><label className="block text-sm font-semibold mb-1">主要原因</label><select name="reason" value={form.reason} onChange={handleChange} className="w-full p-2 border rounded bg-white focus:outline-none focus:border-primary">{['必要支出','朋友邀約','看到優惠','心情不好','想放鬆','衝動購買'].map(o => <option key={o}>{o}</option>)}</select></div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">目前後悔程度？</label>
+                  <div className="flex gap-2">{['不後悔','有點後悔','非常後悔'].map(r => (<button type="button" key={r} onClick={() => setForm({...form, regret: r})} className={`flex-1 p-2 rounded border text-sm transition-colors ${form.regret === r ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600'}`}>{r}</button>))}</div>
+                </div>
+              </div>
+            )}
+          </div>
+          <button type="submit" className={`w-full text-white py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90 active:scale-95 transition-all ${txType === 'income' ? 'bg-safe' : 'bg-accent'}`}>
+            {txType === 'income' ? '新增收入並存入帳戶' : '扣款並讓 AI 診斷'}
+          </button>
+        </form>
+      );
+    };
+
+    // --- Diagnosis Result View ---
+    const DiagnosisView = ({ data, onDone }) => {
+      if (!data) return null;
+      const amt = Number(data.amount);
+      const getRiskColor = (score) => score > 70 ? 'text-danger' : score > 40 ? 'text-warning' : 'text-safe';
+
+      return (
+        <div className="fade-in space-y-4 pb-10">
+          <div className="text-center py-4"><div className="inline-block p-4 rounded-full bg-white shadow-sm text-primary mb-2"><IconBrain /></div><h2 className="text-2xl font-bold text-secondary">AI 情緒消費診斷</h2></div>
+          <div className="glass-card p-5 border-l-4 border-accent">
+            <div className="flex justify-between items-center mb-2"><span className="text-sm font-bold text-gray-500">這筆花費屬於</span><span className={`font-bold ${getRiskColor(data.riskScore)}`}>風險指數：{data.riskScore}/100</span></div>
+            <div className="text-2xl font-bold text-primary mb-3">{data.type}</div>
+            <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded leading-relaxed border border-gray-100">{data.advice}</div>
+          </div>
+          <div className="glass-card p-5 bg-gradient-to-br from-white to-gray-50">
+            <h3 className="font-bold text-secondary flex items-center gap-2 mb-3"><IconTrending /> 0050 投資機會成本分析</h3>
+            <p className="text-xs text-gray-500 mb-4">如果你沒有花掉這 NT$ {amt.toLocaleString()}，而是投入台股 0050 ETF，依據近年歷史平均報酬推算：</p>
+            <div className="space-y-3">
+              <div className="flex justify-between items-end border-b border-gray-100 pb-1"><span className="text-sm text-gray-600">近 1 年後預估</span><span className="font-bold text-safe">NT$ {Math.round(amt * 1.25).toLocaleString()}</span></div>
+              <div className="flex justify-between items-end border-b border-gray-100 pb-1"><span className="text-sm text-gray-600">近 3 年後預估</span><span className="font-bold text-safe">NT$ {Math.round(amt * 1.62).toLocaleString()}</span></div>
+              <div className="flex justify-between items-end"><span className="text-sm text-gray-600">近 5 年後預估</span><span className="font-bold text-safe text-lg">NT$ {Math.round(amt * 2.15).toLocaleString()}</span></div>
+            </div>
+          </div>
+          <div className="glass-card p-5"><h3 className="font-bold text-secondary mb-2 border-l-4 border-safe pl-2">下次的替代方案</h3><div className="text-sm text-gray-700">{data.alternative}</div></div>
+          <button onClick={onDone} className="w-full mt-4 bg-primary text-white py-3 rounded-lg font-bold shadow-md hover:bg-opacity-90 active:scale-95 transition-all">了解，回總覽</button>
+        </div>
+      );
+    };
+
+    // --- Personality View ---
+    const PersonalityView = ({ txs, selectedMonth }) => {
+      const monthTxs = txs.filter(t => t.date.startsWith(selectedMonth));
+      const expenses = monthTxs.filter(t => t.txType !== 'income');
+      const typeCounts = expenses.reduce((acc, t) => { acc[t.type] = (acc[t.type] || 0) + 1; return acc; }, {});
+      let topType = '必要型消費'; let maxCount = 0;
+      for (const [t, c] of Object.entries(typeCounts)) { if(c > maxCount) { maxCount = c; topType = t; } }
+
+      return (
+        <div className="fade-in space-y-4">
+          <div className="mb-4"><h2 className="text-2xl font-bold text-secondary">你的錢包人格 ({selectedMonth})</h2><p className="text-sm text-gray-500 mt-1">根據此月份的消費行為，AI 分析出你目前的潛在財務性格。</p></div>
+          <div className="space-y-4">
+            {personalities.map(p => {
+              const isMain = p.trigger === topType && expenses.length > 0;
+              return (
+                <div key={p.id} className={`relative p-5 rounded-xl shadow-sm transition-all border-2 ${isMain ? 'border-primary shadow-md scale-[1.02] ' + p.color + ' ' + p.text : 'border-transparent opacity-80 ' + p.color + ' ' + p.text}`}>
+                  {isMain && <div className="absolute top-0 right-0 bg-accent text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-xl">本月主要人格</div>}
+                  <div className="text-4xl mb-2">{p.icon}</div><h3 className="text-xl font-bold mb-1">{p.name}</h3><p className="text-sm opacity-90">{p.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    };
+
+    // --- Simulator View (★★ 大幅升級自訂動態項目 ★★) ---
+    const SimulatorView = ({ txs, selectedMonth }) => {
+      const monthTxs = txs.filter(t => t.date.startsWith(selectedMonth));
+      const expenses = monthTxs.filter(t => t.txType !== 'income');
+      const incomes = monthTxs.filter(t => t.txType === 'income');
+      const spent = expenses.reduce((s,t)=>s+Number(t.amount),0);
+      const totalIncome = incomes.reduce((s,t)=>s+Number(t.amount),0);
+
+      const calculateDaysLeft = () => {
+        const [y, m] = selectedMonth.split('-');
+        const endOfMonth = new Date(y, m, 0).getDate();
+        const today = new Date();
+        if (today.getFullYear() === Number(y) && (today.getMonth() + 1) === Number(m)) {
+          return Math.max(1, endOfMonth - today.getDate());
+        }
+        return endOfMonth;
+      };
+
+      const [daysLeft, setDaysLeft] = useState(calculateDaysLeft());
+      useEffect(() => { setDaysLeft(calculateDaysLeft()); }, [selectedMonth]);
+
+      // --- 動態節流項目狀態管理 ---
+      const [adjustments, setAdjustments] = useState(() => {
+        const saved = localStorage.getItem('walletClinic_simulator_adj');
+        return saved ? JSON.parse(saved) : [
+          { id: '1', name: '少點外送', price: 300, count: 2 },
+          { id: '2', name: '少喝手搖', price: 65, count: 3 }
+        ];
+      });
+
+      // 自動將設定儲存到瀏覽器
+      useEffect(() => {
+        localStorage.setItem('walletClinic_simulator_adj', JSON.stringify(adjustments));
+      }, [adjustments]);
+
+      // 新增一筆空白項目
+      const handleAddAdjustment = () => {
+        setAdjustments([...adjustments, { id: Date.now().toString(), name: '', price: 100, count: 1 }]);
+      };
+
+      // 更新指定項目的內容
+      const handleUpdateAdjustment = (id, field, value) => {
+        setAdjustments(adjustments.map(adj => adj.id === id ? { ...adj, [field]: value } : adj));
+      };
+
+      // 刪除指定項目
+      const handleDeleteAdjustment = (id) => {
+        setAdjustments(adjustments.filter(adj => adj.id !== id));
+      };
+
+      // -----------------------------
+
+      const daysPassed = Math.max(1, new Date(selectedMonth.split('-')[0], selectedMonth.split('-')[1], 0).getDate() - daysLeft);
+      const dailyAvg = Math.round(spent / daysPassed);
+      const projectedTotal = spent + (dailyAvg * daysLeft);
+      
+      // 動態加總節流清單省下的錢
+      const savings = adjustments.reduce((sum, adj) => sum + (Number(adj.price) * Number(adj.count)), 0);
+      
+      const finalProjected = projectedTotal - savings;
+      const finalBalance = totalIncome - finalProjected;
+      const isOver = finalBalance < 0;
+
+      return (
+        <div className="fade-in space-y-4">
+          <h2 className="text-xl font-bold text-primary mb-2 flex items-center gap-2"><IconTrending /> 月底財務模擬器 ({selectedMonth})</h2>
+          
+          <div className="glass-card p-4 space-y-3">
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-gray-500 mb-1">距離本月底天數</label>
+                <input type="number" value={daysLeft} onChange={e => setDaysLeft(Number(e.target.value))} className="w-full p-2 bg-gray-50 border rounded focus:outline-none focus:border-primary font-bold" />
+              </div>
+              <div className="flex-1 bg-gray-50 p-2 rounded border">
+                <div className="text-xs font-bold text-gray-500 mb-1">目前日均花費</div>
+                <div className="text-lg font-bold text-secondary">NT$ {dailyAvg}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-sm border-l-4 border-primary pl-2">如果接下來少花一點...</h3>
+              <button onClick={handleAddAdjustment} className="text-xs text-primary font-bold bg-primary/10 px-2 py-1 rounded hover:bg-primary/20 transition-colors">+ 新增項目</button>
+            </div>
+            
+            <div className="space-y-3">
+              {adjustments.map(adj => (
+                <div key={adj.id} className="flex gap-1 items-center">
+                  <input type="text" value={adj.name} onChange={e => handleUpdateAdjustment(adj.id, 'name', e.target.value)} className="flex-1 p-1 text-sm border rounded focus:border-primary focus:outline-none bg-gray-50" placeholder="節流目標" />
+                  
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-500 font-bold">$</span>
+                    <input type="number" value={adj.price} onChange={e => handleUpdateAdjustment(adj.id, 'price', e.target.value)} className="w-14 p-1 text-sm border rounded text-right focus:border-primary focus:outline-none bg-gray-50" />
+                  </div>
+                  
+                  <span className="text-xs text-gray-500">×</span>
+                  
+                  <select value={adj.count} onChange={e => handleUpdateAdjustment(adj.id, 'count', Number(e.target.value))} className="w-14 p-1 text-sm border rounded bg-white focus:border-primary focus:outline-none">
+                    {[1,2,3,4,5,6,7,8,9,10,15,20,30].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <span className="text-xs text-gray-500 pr-1">次</span>
+                  
+                  <button onClick={() => handleDeleteAdjustment(adj.id)} className="text-gray-300 hover:text-red-500 px-1 font-bold">✕</button>
+                </div>
+              ))}
+              
+              {adjustments.length === 0 && (
+                <div className="text-center text-xs text-gray-400 py-3 border border-dashed rounded bg-gray-50">目前尚未設定任何節流目標</div>
+              )}
+            </div>
+            
+            <div className="mt-4 p-2 bg-safe text-white rounded text-center text-sm font-bold shadow">
+              預期結算前可多存下 NT$ {savings.toLocaleString()}
+            </div>
+          </div>
+
+          <div className={`glass-card p-5 text-center border-t-4 ${isOver ? 'border-danger' : 'border-safe'}`}>
+            <h3 className="text-sm font-bold text-gray-500 mb-1">{selectedMonth} 月底結餘預測</h3>
+            <div className={`text-3xl font-bold ${isOver ? 'text-danger' : 'text-safe'}`}>NT$ {finalBalance.toLocaleString()}</div>
+            {totalIncome === 0 && <p className="text-xs text-danger mt-2">提示：本月尚無收入，結餘為負值。</p>}
+          </div>
+        </div>
+      );
+    };
+
+    // --- Cooldown View ---
+    const CooldownView = () => {
+      const [form, setForm] = useState({ item: '', price: '', reason: '', emotion: '開心', tone: '嚴格版' });
+      const [result, setResult] = useState(null);
+      const handleCheck = () => {
+        if(!form.item || !form.price) return;
+        const p = Number(form.price);
+        let risk = '高風險'; let action = '不要買'; let msg = '';
+        if (form.tone === '嚴格版') { msg = p > 2000 ? `你確定你的戶頭承受得起這 NT$${p}？這明顯是衝動購物，立刻放下手機！` : '這筆錢留著吃飯不好嗎？別因為一時的情緒把錢丟進水裡。'; } 
+        else if (form.tone === '溫柔版') { risk = p > 2000 ? '中風險' : '低風險'; action = p > 2000 ? '延後買' : '可以買'; msg = `親愛的，我知道你現在情緒是「${form.emotion}」。如果買了能讓你真正開心很久，那就買吧；但如果只是想發洩，我們把它放進購物車等明天決定好嗎？`; } 
+        else { msg = `你的錢包在哭泣你聽見了嗎？NT$${p} 可以吃好幾頓大餐了！放下那個 ${form.item}，立地成佛！`; }
+        if (form.emotion === '壓力大' || form.emotion === '無聊') action = '延後買';
+        setResult({ risk, action, msg });
+      };
+      return (
+        <div className="fade-in space-y-4">
+          <h2 className="text-xl font-bold text-primary flex items-center gap-2"><IconShield /> 冷靜購買助手</h2>
+          <div className="glass-card p-4 space-y-3">
+            <input placeholder="我想買什麼？ (例如：新出的耳機)" className="w-full p-2 border rounded focus:border-primary focus:outline-none" onChange={e=>setForm({...form, item:e.target.value})} />
+            <input type="number" placeholder="多少錢？" className="w-full p-2 border rounded focus:border-primary focus:outline-none" onChange={e=>setForm({...form, price:e.target.value})} />
+            <div className="grid grid-cols-2 gap-2">
+              <select className="w-full p-2 border rounded bg-white" onChange={e=>setForm({...form, emotion:e.target.value})}>{['壓力大','開心','無聊','想犒賞自己','朋友勸敗'].map(o => <option key={o}>{o}</option>)}</select>
+              <select className="w-full p-2 border rounded bg-white" onChange={e=>setForm({...form, tone:e.target.value})}><option>嚴格版</option><option>溫柔版</option><option>幽默版</option></select>
+            </div>
+            <button onClick={handleCheck} className="w-full bg-secondary text-white py-3 rounded-lg font-bold shadow-md hover:opacity-90 active:scale-95 transition-all">幫我評估</button>
+          </div>
+          {result && (
+            <div className="glass-card p-5 mt-4 border-l-4 border-warning fade-in">
+              <div className="flex gap-2 mb-2"><span className="px-2 py-1 text-xs font-bold rounded bg-gray-100 text-gray-600">{result.risk}</span><span className={`px-2 py-1 text-xs font-bold rounded text-white ${result.action==='不要買'?'bg-danger': result.action==='延後買'?'bg-warning':'bg-safe'}`}>{result.action}</span></div>
+              <div className="text-lg font-bold text-primary mb-2">AI 勸退語錄：</div><p className="text-gray-700 italic leading-relaxed">「{result.msg}」</p>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // --- History View ---
+    const HistoryView = ({ txs, accounts, onDelete, selectedMonth, setSelectedMonth }) => {
+      const getAccName = (id) => { const acc = accounts.find(a => a.id === id); return acc ? acc.name : '未知帳戶'; };
+      const monthTxs = txs.filter(t => t.date.startsWith(selectedMonth));
+
+      return (
+        <div className="fade-in space-y-4">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-bold text-primary flex items-center gap-2"><IconList /> 明細紀錄</h2>
+            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-1 border rounded bg-white text-sm font-bold text-primary focus:outline-none focus:border-primary shadow-sm" />
+          </div>
+          {monthTxs.length === 0 ? <div className="text-center text-gray-400 py-10">{selectedMonth} 月目前沒有紀錄喔！</div> : 
+            <div className="space-y-3">
+              {monthTxs.map(t => {
+                const isIncome = t.txType === 'income';
+                return (
+                  <div key={t.id} className="glass-card p-3 relative flex items-center justify-between border-l-4" style={{ borderLeftColor: isIncome ? '#4CAF50' : '#E76F51' }}>
+                    <div>
+                      <div className="font-bold text-secondary text-sm">{t.item}</div>
+                      <div className="text-[11px] text-gray-400 mt-1 flex gap-2">
+                        <span>{t.date}</span><span className="font-bold border-l pl-2 border-gray-300 flex items-center gap-1"><IconWallet /> {getAccName(t.accountId)}</span>
+                      </div>
+                      <div className="mt-2 space-x-1">
+                        {isIncome ? <span className="text-[10px] bg-safe/20 text-safe font-bold px-2 py-0.5 rounded">收入: {t.category}</span> : <><span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{t.category}</span><span className="text-[10px] bg-accent/10 text-accent font-bold px-2 py-0.5 rounded">{t.type}</span></>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`font-bold text-lg ${isIncome ? 'text-safe' : 'text-primary'}`}>{isIncome ? '+' : '-'} NT$ {t.amount}</div>
+                      <button onClick={() => { if(window.confirm('刪除紀錄將同步還原帳戶餘額，確定刪除？')) onDelete(t.id); }} className="text-xs text-red-400 hover:text-red-600 mt-2 underline">刪除並退回</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          }
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
